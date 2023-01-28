@@ -3,7 +3,10 @@
 #include <SFML/Network.hpp>
 #include <SFML/System.hpp>
 #include <SFML/Window.hpp>
+#include <SFML/Main.hpp>
 #include <iostream>
+#include <android/log.h>
+#include <string>
 
 // Do we want to showcase direct JNI/NDK interaction?
 // Undefine this to get real cross-platform code.
@@ -76,94 +79,161 @@ int vibrate(sf::Time duration)
 // This is the actual Android example. You don't have to write any platform
 // specific code, unless you want to use things not directly exposed.
 // ('vibrate()' in this example; undefine 'USE_JNI' above to disable it)
-int main(int argc, char* argv[])
-{
+using namespace sf;
+using namespace std;
 
-    sf::VideoMode screen(sf::VideoMode::getDesktopMode());
+int ground = 628;
 
-    sf::RenderWindow window(screen, "");
-    window.setFramerateLimit(30);
+const int h = 24;
+const int w = 46;
 
-    sf::Texture texture;
-    if (!texture.loadFromFile("image.png"))
-        return EXIT_FAILURE;
+//String tileMap[12] = {
+//        "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+//        "B                                       B    B",
+//        "B                                       B    B",
+//        "B                                       B    B",
+//        "B                                       B    B",
+//        "B          0000                      BBBB    B",
+//        "B                                       B    B",
+//        "BBB                                     B    B",
+//        "B                BB                     BB   B",
+//        "B                BB                          B",
+//        "B                BB             BB           B",
+//        "BBBBBBBBB     BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+//};
 
-    sf::Sprite image(texture);
-    image.setPosition(sf::Vector2f(screen.size) / 2.f);
-    image.setOrigin(sf::Vector2f(texture.getSize()) / 2.f);
+string tileMap[24] = {
+        "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "B                                       B    B",
+        "B                                       B    B",
+        "B                                       B    B",
+        "B                                       B    B",
+        "B          0000                      BBBB    B",
+        "B                                       B    B",
+        "BBB                                     B    B",
+        "B                BB                     BB   B",
+        "B                BB                          B",
+        "B                BB             BB           B",
+        "B             BBBBBB          BBBBBBBBBBBBBBBB",
+        "B                                            B",
+        "B                                       B    B",
+        "B                                       B    B",
+        "B                                       B    B",
+        "B                                       B    B",
+        "B          0000                      BBBB    B",
+        "B                                       B    B",
+        "BBB                                     B    B",
+        "B                BB                     BB   B",
+        "B                BB                          B",
+        "B                BB             BB           B",
+        "BBBBBBBBB     BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+};
 
-    sf::Font font;
-    if (!font.loadFromFile("tuffy.ttf"))
-        return EXIT_FAILURE;
+class Player {
 
-    sf::Text text("HELLO WORLD", font, 64);
-    text.setFillColor(sf::Color::Black);
-    text.setPosition({10, 10});
+public:
+    float dx, dy;
+    FloatRect rect;
+    bool onGround;
+    Sprite sprite;
+    float currentFrame;
 
-    sf::View view = window.getDefaultView();
+    Player(Texture &texture) {
+        sprite.setTexture(texture);
+        rect = FloatRect({0, 628}, {108, 140});
+        sprite.setTextureRect(
+                IntRect(
+                        {0, 0},
+                        {(int) rect.width, (int) rect.height}
+                )
+        );
+        dx = dy = 0;
+        currentFrame = 0;
+        sprite.setPosition(rect.getPosition());
+        onGround = true;
+    }
 
-    sf::Color background = sf::Color::White;
+    void update(float time) {
+        rect.left += (dx * time);
 
-    // We shouldn't try drawing to the screen while in background
-    // so we'll have to track that. You can do minor background
-    // work, but keep battery life in mind.
-    bool active = true;
-
-    while (window.isOpen())
-    {
-        for (sf::Event event; active ? window.pollEvent(event) : window.waitEvent(event);)
-        {
-            switch (event.type)
-            {
-                case sf::Event::Closed:
-                    window.close();
-                    break;
-                case sf::Event::KeyPressed:
-                    if (event.key.code == sf::Keyboard::Escape)
-                        window.close();
-                    break;
-                case sf::Event::Resized:
-                    view.setSize(sf::Vector2f(event.size.width, event.size.height));
-                    view.setCenter(sf::Vector2f(event.size.width, event.size.height) / 2.f);
-                    window.setView(view);
-                    break;
-                case sf::Event::LostFocus:
-                    background = sf::Color::Black;
-                    break;
-                case sf::Event::GainedFocus:
-                    background = sf::Color::White;
-                    break;
-
-                // On Android MouseLeft/MouseEntered are (for now) triggered,
-                // whenever the app loses or gains focus.
-                case sf::Event::MouseLeft:
-                    active = false;
-                    break;
-                case sf::Event::MouseEntered:
-                    active = true;
-                    break;
-                case sf::Event::TouchBegan:
-                    if (event.touch.finger == 0)
-                    {
-                        image.setPosition({static_cast<float>(event.touch.x), static_cast<float>(event.touch.y)});
-#if defined(USE_JNI)
-                        vibrate(sf::milliseconds(10));
-#endif
-                    }
-                    break;
+        if (!onGround) {
+            dy += 0.002 * time;
+            rect.top += dy * time;
+            if (rect.top > ground) {
+                rect.top = ground;
+                dy = 0;
+                onGround = true;
             }
         }
-
-        if (active)
-        {
-            window.clear(background);
-            window.draw(image);
-            window.draw(text);
-            window.display();
+        //animation
+        currentFrame += 0.01 * time;
+        if (currentFrame > 8) currentFrame -= 8;
+        if (dx > 0) {
+            sprite.setTextureRect(IntRect({108 * (int) currentFrame, 0}, {108, 140}));
+        } else if (dx < 0) {
+            sprite.setTextureRect(IntRect({108 * (int) currentFrame, 140}, {108, 140}));
         }
-        else
-        {
-            sf::sleep(sf::milliseconds(100));
+        //positioning
+        sprite.setPosition(rect.getPosition());
+        dx = 0;
+    }
+};
+
+void HandleMoveTap(Player &player, int primaryFinger) {
+    if (Touch::isDown(primaryFinger)) {
+        int x = Touch::getPosition(primaryFinger).x;
+        if (x > 200 && x < 400) {
+            player.dx = 0.5f;
+        } else if (x < 200) {
+            player.dx = -0.5f;
         }
     }
+}
+
+void HandleJumpTap(Player &player, int primaryFinger, int secondaryFinger) {
+    if ((Touch::isDown(primaryFinger) && Touch::getPosition(primaryFinger).x > 600) ||
+        (Touch::isDown(secondaryFinger) && Touch::getPosition(secondaryFinger).x > 600)) {
+        if (player.onGround) {
+            player.onGround = false;
+            player.dy = -0.9f;
+        }
+    }
+}
+
+int main(int argc, char *argv[]) {
+    RenderWindow window(VideoMode({1184, 768}), "Test!", Style::Fullscreen);
+    Texture texture;
+    texture.loadFromFile("scottpilgrim_multiple.png");
+    Player player(texture);
+    Clock clock;
+    RectangleShape rectangleShape;
+    rectangleShape.setSize({32, 32});
+    while (window.isOpen()) {
+        float time = clock.getElapsedTime().asMilliseconds();
+        clock.restart();
+        time = time * 1;
+        Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == Event::Closed)
+                window.close();
+        }
+        HandleMoveTap(player, 0);
+        HandleJumpTap(player, 0, 1);
+        player.update(time);
+        window.clear(Color(255, 255, 255));
+        for (int i = 0; i < h; i++) {
+            for (int j = 0; j < w; j++) {
+                char cell = tileMap[i][j];
+                if (cell == 'B') rectangleShape.setFillColor(Color::Black);
+                else if (cell == '0') rectangleShape.setFillColor(Color::Green);
+                else if (cell == ' ') continue;
+                rectangleShape.setPosition({j * 32.0f, i * 32.0f});
+                window.draw(rectangleShape);
+            }
+        }
+        window.draw(rectangleShape);
+        window.draw(player.sprite);
+        window.display();
+    }
+    return 0;
 }
